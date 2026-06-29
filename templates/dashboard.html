@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Account Creator{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <h2 class="text-2xl font-bold">Dashboard</h2>
+    <p class="text-gray-500 text-sm mt-0.5">{{ accounts | length }} accounts · click a card to filter</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <!-- Upload CSV -->
+    <label class="cursor-pointer px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-sm font-medium transition">
+      ⬆ Upload CSV
+      <input type="file" accept=".csv" class="hidden" onchange="submitUpload(this)">
+    </label>
+    <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data" class="hidden">
+      <input type="file" name="csv_file" id="csvInput">
+    </form>
+    {% if bot_running %}
+      <a href="/run" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
+        <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse inline-block"></span>Bot Running
+      </a>
+    {% else %}
+      <a href="/run" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold transition">▶ Run Bot</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stat Cards (clickable filter) -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+  <button onclick="filterTable('')"
+    class="stat-card rounded-2xl border border-gray-800 bg-gray-800 p-5 text-left transition hover:border-gray-600 active:scale-95"
+    data-filter="">
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider block">Total</span>
+    <span class="text-3xl font-bold text-gray-100">{{ stats.total }}</span>
+  </button>
+  <button onclick="filterTable('pending')"
+    class="stat-card rounded-2xl border border-gray-800 bg-blue-950/60 p-5 text-left transition hover:border-blue-700 active:scale-95"
+    data-filter="pending">
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider block">Pending</span>
+    <span class="text-3xl font-bold text-blue-300">{{ stats.pending }}</span>
+  </button>
+  <button onclick="filterTable('running')"
+    class="stat-card rounded-2xl border border-gray-800 bg-yellow-950/60 p-5 text-left transition hover:border-yellow-700 active:scale-95"
+    data-filter="running">
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider block">Running</span>
+    <span class="text-3xl font-bold text-yellow-300">{{ stats.running }}</span>
+  </button>
+  <button onclick="filterTable('completed')"
+    class="stat-card rounded-2xl border border-gray-800 bg-emerald-950/60 p-5 text-left transition hover:border-emerald-700 active:scale-95"
+    data-filter="completed">
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider block">Completed</span>
+    <span class="text-3xl font-bold text-emerald-300">{{ stats.completed }}</span>
+  </button>
+  <button onclick="filterTable('failed')"
+    class="stat-card rounded-2xl border border-gray-800 bg-red-950/60 p-5 text-left transition hover:border-red-700 active:scale-95"
+    data-filter="failed">
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider block">Failed</span>
+    <span class="text-3xl font-bold text-red-300">{{ stats.failed }}</span>
+  </button>
+</div>
+
+<!-- Progress bar -->
+{% if stats.total > 0 %}
+{% set pct = ((stats.completed / stats.total) * 100) | round | int %}
+<div class="mb-6 bg-gray-900 border border-gray-800 rounded-2xl px-6 py-4 flex items-center gap-4">
+  <div class="flex-1">
+    <div class="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+      <div class="h-full bg-emerald-500 rounded-full transition-all" style="width: {{ pct }}%"></div>
+    </div>
+  </div>
+  <span class="text-xs text-gray-500 whitespace-nowrap">
+    {{ stats.completed }}/{{ stats.total }} completed · {{ stats.failed }} failed · {{ pct }}%
+  </span>
+</div>
+{% endif %}
+
+<!-- Accounts Table -->
+<div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-6">
+  <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+    <h3 class="font-semibold text-sm" id="table-title">All Accounts</h3>
+    <span class="text-xs text-gray-600" id="row-count">{{ accounts | length }} rows</span>
+  </div>
+
+  {% if accounts %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" id="accounts-table">
+      <thead>
+        <tr class="text-xs text-gray-500 uppercase tracking-wider bg-gray-800/50 border-b border-gray-800">
+          <th class="px-4 py-3 text-left w-8">#</th>
+          <th class="px-4 py-3 text-left">Email</th>
+          <th class="px-4 py-3 text-left">Password</th>
+          <th class="px-4 py-3 text-left">Name</th>
+          <th class="px-4 py-3 text-center">WG</th>
+          <th class="px-4 py-3 text-center">IS24</th>
+          <th class="px-4 py-3 text-center">IW</th>
+          <th class="px-4 py-3 text-center">Status</th>
+          <th class="px-4 py-3 text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800/40" id="accounts-tbody">
+        {% for account in accounts %}
+        {% set plats = account.platforms or [] %}
+        <tr class="hover:bg-gray-800/20 transition group account-row" data-status="{{ account.status }}">
+          <td class="px-4 py-3 text-gray-600 text-xs">{{ loop.index }}</td>
+
+          <td class="px-4 py-3">
+            <span class="font-mono text-xs text-gray-200">{{ account.email }}</span>
+          </td>
+
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-1">
+              <span class="font-mono text-xs text-gray-400" id="pw-{{ account.id }}">••••••••</span>
+              <button onclick="togglePwd('{{ account.id }}')"
+                class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-300 transition p-0.5 rounded" title="Show/hide password">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </button>
+            </div>
+          </td>
+
+          <td class="px-4 py-3 text-xs text-gray-300">
+            {% if account.first_name %}{{ account.first_name }} {{ account.last_name }}
+            {% else %}<span class="text-gray-700">—</span>{% endif %}
+          </td>
+
+          <td class="px-4 py-3 text-center">
+            {% if "wg-gesucht" in plats %}
+              <span class="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+            {% else %}
+              <span class="inline-flex w-5 h-5 items-center justify-center rounded-full bg-gray-800 text-gray-600 text-xs">✗</span>
+            {% endif %}
+          </td>
+
+          <td class="px-4 py-3 text-center">
+            {% if "immoscout24" in plats %}
+              <span class="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+            {% else %}
+              <span class="inline-flex w-5 h-5 items-center justify-center rounded-full bg-gray-800 text-gray-600 text-xs">✗</span>
+            {% endif %}
+          </td>
+
+          <td class="px-4 py-3 text-center">
+            {% if "immowelt" in plats %}
+              <span class="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+            {% else %}
+              <span class="inline-flex w-5 h-5 items-center justify-center rounded-full bg-gray-800 text-gray-600 text-xs">✗</span>
+            {% endif %}
+          </td>
+
+          <td class="px-4 py-3 text-center">
+            {% if account.status == 'completed' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300 font-medium">completed</span>
+            {% elif account.status == 'running' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300 font-medium animate-pulse">running</span>
+            {% elif account.status == 'failed' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-300 font-medium" title="{{ account.error_msg }}">failed</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-gray-700 text-gray-400 font-medium">pending</span>
+            {% endif %}
+          </td>
+
+          <td class="px-4 py-3 text-center">
+            <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition">
+              {% if plats | length < 3 and account.status in ['completed', 'failed'] %}
+              <form action="/account/retry/{{ account.id }}" method="POST" title="Retry missing platforms only">
+                <button type="submit" class="p-1.5 rounded-lg hover:bg-yellow-500/20 text-yellow-400 text-xs font-bold">⟳</button>
+              </form>
+              {% endif %}
+              <form action="/account/delete/{{ account.id }}" method="POST" onsubmit="return confirm('Delete this account?')">
+                <button type="submit" class="p-1.5 rounded-lg hover:bg-red-500/20 text-red-400 text-xs" title="Delete">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="py-16 text-center">
+      <div class="text-5xl mb-3">📭</div>
+      <p class="text-gray-500 mb-4 text-sm">No accounts yet. Upload a CSV to get started.</p>
+      <label class="cursor-pointer px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold transition">
+        Upload CSV
+        <input type="file" accept=".csv" class="hidden" onchange="submitUpload(this)">
+      </label>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Recent Bot Runs -->
+<div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+    <h3 class="font-semibold text-sm">Recent Bot Runs</h3>
+    <a href="/run" class="text-xs text-indigo-400 hover:text-indigo-300">Go to Run Bot →</a>
+  </div>
+  {% if recent_runs %}
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs text-gray-500 uppercase tracking-wider bg-gray-800/30 border-b border-gray-800">
+          <th class="px-5 py-2.5 text-left">Started</th>
+          <th class="px-5 py-2.5 text-left">Status</th>
+          <th class="px-5 py-2.5 text-left">Total</th>
+          <th class="px-5 py-2.5 text-left">Completed</th>
+          <th class="px-5 py-2.5 text-left">Failed</th>
+          <th class="px-5 py-2.5 text-left">Finished</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800/40">
+        {% for run in recent_runs %}
+        <tr class="hover:bg-gray-800/20 transition">
+          <td class="px-5 py-3 font-mono text-xs text-gray-400">{{ run.started_at[:19].replace('T',' ') if run.started_at else '—' }}</td>
+          <td class="px-5 py-3">
+            {% if run.status == 'running' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">running</span>
+            {% elif run.status == 'completed' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300">completed</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-300">{{ run.status }}</span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3 text-gray-300">{{ run.total }}</td>
+          <td class="px-5 py-3 text-emerald-400">{{ run.completed }}</td>
+          <td class="px-5 py-3 text-red-400">{{ run.failed }}</td>
+          <td class="px-5 py-3 font-mono text-xs text-gray-400">{{ run.finished_at[:19].replace('T',' ') if run.finished_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="px-5 py-10 text-center text-xs text-gray-600">No bot runs yet.</div>
+  {% endif %}
+</div>
+
+<script>
+  const PASSWORDS = {{ passwords_json | safe }};
+  const shownPwds = {};
+  let activeFilter = '';
+
+  function togglePwd(id) {
+    const el = document.getElementById('pw-' + id);
+    shownPwds[id] = !shownPwds[id];
+    el.textContent = shownPwds[id] ? (PASSWORDS[id] || '—') : '••••••••';
+  }
+
+  function filterTable(status) {
+    activeFilter = status;
+    const rows = document.querySelectorAll('.account-row');
+    let visible = 0;
+    rows.forEach(row => {
+      const show = !status || row.dataset.status === status;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    // Update title and count
+    const titles = { '': 'All Accounts', 'pending': 'Pending', 'running': 'Running', 'completed': 'Completed', 'failed': 'Failed' };
+    document.getElementById('table-title').textContent = (titles[status] || 'All') + ' Accounts';
+    document.getElementById('row-count').textContent = visible + ' rows';
+
+    // Highlight active card
+    document.querySelectorAll('.stat-card').forEach(card => {
+      const isActive = card.dataset.filter === status;
+      card.style.outline = isActive ? '2px solid #6366f1' : '';
+      card.style.outlineOffset = isActive ? '2px' : '';
+    });
+  }
+
+  function submitUpload(input) {
+    if (!input.files.length) return;
+    const form = document.getElementById('uploadForm');
+    const realInput = document.getElementById('csvInput');
+    const dt = new DataTransfer();
+    dt.items.add(input.files[0]);
+    realInput.files = dt.files;
+    form.submit();
+  }
+</script>
+
+{% endblock %}

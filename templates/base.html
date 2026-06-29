@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Account Creator{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: '#6366f1' } } }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1e1e2e; }
+    ::-webkit-scrollbar-thumb { background: #4c4f69; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased">
+
+  <!-- Navbar -->
+  <nav class="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg tracking-tight">
+        <span class="text-indigo-400 text-xl">⚙</span>
+        <span>Account Creator</span>
+      </a>
+      <div class="flex items-center gap-1">
+        <a href="/"    class="nav-link {% if request.path == '/' %}active{% endif %}">Dashboard</a>
+        <a href="/run" class="nav-link {% if request.path == '/run' %}active{% endif %}">Run Bot</a>
+        <a href="https://firstmail.ltd/webmail/login/" target="_blank"
+           class="ml-2 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition">
+          📬 Webmail
+        </a>
+        <a href="/logout"   class="ml-2 px-3 py-1.5 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-900/20 transition">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <style>
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      color: #9ca3af;
+      transition: all 0.15s;
+    }
+    .nav-link:hover { color: #f9fafb; background: rgba(255,255,255,0.05); }
+    .nav-link.active { color: #f9fafb; background: rgba(99,102,241,0.2); }
+  </style>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="max-w-7xl mx-auto px-6 pt-4 space-y-2">
+        {% for cat, msg in messages %}
+          <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm
+            {% if cat == 'error' %}bg-red-950 border border-red-800 text-red-300
+            {% else %}bg-emerald-950 border border-emerald-800 text-emerald-300{% endif %}">
+            <span>{% if cat == 'error' %}✕{% else %}✓{% endif %}</span>
+            <span>{{ msg }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

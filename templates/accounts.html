@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Accounts — Account Creator{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h2 class="text-2xl font-bold">Accounts</h2>
+    <p class="text-gray-500 text-sm mt-1">{{ accounts | length }} account{{ 's' if accounts | length != 1 }} shown</p>
+  </div>
+  <div class="flex items-center gap-3">
+    <!-- Upload CSV -->
+    <label class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold transition">
+      ⬆ Upload CSV
+      <input type="file" accept=".csv" class="hidden" onchange="submitUpload(this)">
+    </label>
+  </div>
+</div>
+
+<!-- Hidden upload form -->
+<form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data" class="hidden">
+  <input type="file" name="csv_file" id="csvInput">
+</form>
+
+<!-- Status Filter -->
+<div class="flex gap-2 mb-6 flex-wrap">
+  {% set filters = [('', 'All'), ('pending', 'Pending'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')] %}
+  {% for val, label in filters %}
+    <a href="/accounts{% if val %}?status={{ val }}{% endif %}"
+       class="px-4 py-1.5 rounded-full text-sm font-medium border transition
+              {% if status_filter == val %}
+                border-indigo-500 bg-indigo-500/20 text-indigo-300
+              {% else %}
+                border-gray-700 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-200
+              {% endif %}">
+      {{ label }}
+    </a>
+  {% endfor %}
+</div>
+
+<!-- Table -->
+<div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+  {% if accounts %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs text-gray-500 uppercase tracking-wider bg-gray-800/50 border-b border-gray-800">
+          <th class="px-4 py-3 text-left w-8">#</th>
+          <th class="px-4 py-3 text-left">Email</th>
+          <th class="px-4 py-3 text-left">Password</th>
+          <th class="px-4 py-3 text-left">Name</th>
+          <th class="px-4 py-3 text-center">WG-Gesucht</th>
+          <th class="px-4 py-3 text-center">ImmoScout24</th>
+          <th class="px-4 py-3 text-center">Immowelt</th>
+          <th class="px-4 py-3 text-center">Status</th>
+          <th class="px-4 py-3 text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800/40">
+        {% for account in accounts %}
+        {% set plats = account.platforms or [] %}
+        <tr class="hover:bg-gray-800/20 transition group">
+          <!-- # -->
+          <td class="px-4 py-3 text-gray-600 text-xs">{{ loop.index }}</td>
+
+          <!-- Email -->
+          <td class="px-4 py-3">
+            <span class="font-mono text-xs text-gray-200">{{ account.email }}</span>
+          </td>
+
+          <!-- Password -->
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-1">
+              <span class="font-mono text-xs text-gray-400" id="pw-{{ account.id }}">••••••••</span>
+              <button onclick="togglePwd('{{ account.id }}')"
+                      class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-300 transition p-0.5 rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+                       -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
+          </td>
+
+          <!-- Name -->
+          <td class="px-4 py-3 text-gray-300 text-xs">
+            {% if account.first_name %}
+              {{ account.first_name }} {{ account.last_name }}
+            {% else %}
+              <span class="text-gray-700">—</span>
+            {% endif %}
+          </td>
+
+          <!-- Platform: WG-Gesucht -->
+          <td class="px-4 py-3 text-center">
+            {% if "wg-gesucht" in plats %}
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+            {% else %}
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-gray-600 text-xs">✗</span>
+            {% endif %}
+          </td>
+
+          <!-- Platform: ImmoScout24 -->
+          <td class="px-4 py-3 text-center">
+            {% if "immoscout24" in plats %}
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+            {% else %}
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-gray-600 text-xs">✗</span>
+            {% endif %}
+          </td>
+
+          <!-- Platform: Immowelt -->
+          <td class="px-4 py-3 text-center">
+            {% if "immowelt" in plats %}
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+            {% else %}
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-gray-600 text-xs">✗</span>
+            {% endif %}
+          </td>
+
+          <!-- Status -->
+          <td class="px-4 py-3 text-center">
+            {% if account.status == 'completed' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300 font-medium">completed</span>
+            {% elif account.status == 'running' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300 font-medium animate-pulse">running</span>
+            {% elif account.status == 'failed' %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-300 font-medium"
+                    title="{{ account.error_msg }}">failed</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded-full text-xs bg-gray-700 text-gray-400 font-medium">pending</span>
+            {% endif %}
+          </td>
+
+          <!-- Actions -->
+          <td class="px-4 py-3 text-center">
+            <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition">
+              <form action="/account/reset/{{ account.id }}" method="POST" onsubmit="return confirm('Reset this account to pending?')">
+                <button type="submit" class="p-1.5 rounded-lg hover:bg-blue-500/20 text-blue-400 text-xs" title="Reset to pending">↺</button>
+              </form>
+              <form action="/account/delete/{{ account.id }}" method="POST" onsubmit="return confirm('Delete this account?')">
+                <button type="submit" class="p-1.5 rounded-lg hover:bg-red-500/20 text-red-400 text-xs" title="Delete">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="py-20 text-center">
+      <div class="text-5xl mb-4">📭</div>
+      <p class="text-gray-500 mb-4">No accounts yet.</p>
+      <label class="cursor-pointer px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold transition">
+        Upload CSV
+        <input type="file" accept=".csv" class="hidden" onchange="submitUpload(this)">
+      </label>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  const PASSWORDS = {{ passwords_json | safe }};
+  const shown = {};
+
+  function togglePwd(id) {
+    const el = document.getElementById('pw-' + id);
+    shown[id] = !shown[id];
+    el.textContent = shown[id] ? (PASSWORDS[id] || '—') : '••••••••';
+  }
+
+  function submitUpload(input) {
+    if (!input.files.length) return;
+    const form = document.getElementById('uploadForm');
+    const realInput = document.getElementById('csvInput');
+    const dt = new DataTransfer();
+    dt.items.add(input.files[0]);
+    realInput.files = dt.files;
+    form.submit();
+  }
+</script>
+
+{% endblock %}

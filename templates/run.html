@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}Run Bot — Account Creator{% endblock %}
+
+{% block content %}
+
+<div class="mb-8">
+  <h2 class="text-2xl font-bold">Run Bot</h2>
+  <p class="text-gray-500 text-sm mt-1">Start the account creator in the background</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left column: Controls -->
+  <div class="space-y-6">
+
+    <!-- Start Panel -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+      <h3 class="font-semibold mb-1">Start Bot</h3>
+      <p class="text-xs text-gray-500 mb-5">
+        <span class="font-mono text-indigo-400">{{ pending_count }}</span> accounts pending in the database.
+      </p>
+
+      {% if bot_running %}
+        <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-sm mb-4">
+          <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse inline-block"></span>
+          Bot is currently running…
+        </div>
+        <div class="text-center py-2">
+          <span id="current-email" class="text-xs text-gray-500 font-mono">{{ state.current_email }}</span>
+        </div>
+      {% else %}
+        <form method="POST" action="/run">
+          <label class="block text-sm text-gray-400 mb-1">Number of accounts to process</label>
+          <input
+            type="number"
+            name="n_accounts"
+            min="1"
+            max="{{ pending_count }}"
+            value="{{ [pending_count, 10] | min }}"
+            class="w-full px-4 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-white
+                   focus:outline-none focus:border-indigo-500 text-sm mb-4"
+          />
+          <button type="submit"
+            {% if pending_count == 0 %}disabled{% endif %}
+            class="w-full py-3 rounded-xl font-semibold text-sm transition
+                   {% if pending_count == 0 %}
+                     bg-gray-700 text-gray-500 cursor-not-allowed
+                   {% else %}
+                     bg-indigo-600 hover:bg-indigo-500 active:scale-95
+                   {% endif %}">
+            {% if pending_count == 0 %}No Pending Accounts{% else %}▶ Start Bot{% endif %}
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Live progress (shown when bot is running) -->
+    <div id="progress-panel" class="bg-gray-900 border border-gray-800 rounded-2xl p-6 {% if not bot_running %}hidden{% endif %}">
+      <h3 class="font-semibold mb-4">Progress</h3>
+      <div class="space-y-3">
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Completed</span>
+          <span class="text-emerald-400 font-mono" id="stat-completed">{{ state.completed }}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Failed</span>
+          <span class="text-red-400 font-mono" id="stat-failed">{{ state.failed }}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Total</span>
+          <span class="text-gray-300 font-mono" id="stat-total">{{ state.total }}</span>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="mt-4">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span>Progress</span>
+          <span id="pct-label">0%</span>
+        </div>
+        <div class="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+          <div id="progress-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Current email -->
+      <div class="mt-4 pt-4 border-t border-gray-800">
+        <span class="text-xs text-gray-500">Processing</span>
+        <p class="font-mono text-xs text-indigo-300 mt-0.5 truncate" id="current-email-2">—</p>
+      </div>
+    </div>
+
+    <!-- Run History -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-800">
+        <h3 class="font-semibold text-sm">Run History</h3>
+      </div>
+      {% if run_history %}
+        <div class="divide-y divide-gray-800/50">
+          {% for run in run_history %}
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-mono text-gray-400">
+                  {{ run.started_at[:16].replace('T', ' ') if run.started_at else '—' }}
+                </div>
+                <div class="text-xs text-gray-600 mt-0.5">
+                  {{ run.completed }}/{{ run.total }} done · {{ run.failed }} failed
+                </div>
+              </div>
+              {% if run.status == 'running' %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-yellow-500/20 text-yellow-300">running</span>
+              {% elif run.status == 'completed' %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300">done</span>
+              {% else %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-300">{{ run.status }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="px-5 py-8 text-center text-xs text-gray-600">No runs yet.</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Right column: Live Log -->
+  <div class="lg:col-span-2">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden h-full flex flex-col" style="min-height:520px">
+      <div class="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+        <h3 class="font-semibold text-sm">Live Log</h3>
+        <div class="flex items-center gap-3">
+          <span id="log-status" class="text-xs text-gray-600">idle</span>
+          <button onclick="clearLog()" class="text-xs text-gray-600 hover:text-gray-300 transition">Clear</button>
+        </div>
+      </div>
+      <div id="log-box"
+           class="flex-1 overflow-y-auto p-4 font-mono text-xs text-gray-300 leading-relaxed"
+           style="background:#0d0d14; max-height:600px">
+        <span class="text-gray-600">Waiting for bot to start…</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let lastLogCount = 0;
+  let pollingActive = {{ 'true' if bot_running else 'false' }};
+
+  function clearLog() {
+    document.getElementById('log-box').innerHTML = '<span class="text-gray-600">Log cleared.</span>';
+    lastLogCount = 0;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function colorLine(line) {
+    if (line.includes('✅') || line.includes('✓') || line.includes('Registered on'))
+      return '<span class="text-emerald-400">' + escapeHtml(line) + '</span>';
+    if (line.includes('❌') || line.includes('Error') || line.includes('Failed') || line.includes('failed'))
+      return '<span class="text-red-400">' + escapeHtml(line) + '</span>';
+    if (line.includes('⏳') || line.includes('Waiting') || line.includes('Polling'))
+      return '<span class="text-yellow-400/80">' + escapeHtml(line) + '</span>';
+    if (line.includes('▶') || line.includes('🚀') || line.includes('Bot started'))
+      return '<span class="text-indigo-400">' + escapeHtml(line) + '</span>';
+    if (line.startsWith('=') || line.startsWith('-'))
+      return '<span class="text-gray-600">' + escapeHtml(line) + '</span>';
+    return '<span class="text-gray-300">' + escapeHtml(line) + '</span>';
+  }
+
+  function poll() {
+    fetch('/api/bot-status')
+      .then(r => r.json())
+      .then(data => {
+        // Update stats
+        const total = data.total || 0;
+        const comp  = data.completed || 0;
+        const fail  = data.failed || 0;
+        const pct   = total > 0 ? Math.round(((comp + fail) / total) * 100) : 0;
+
+        document.getElementById('stat-completed').textContent = comp;
+        document.getElementById('stat-failed').textContent    = fail;
+        document.getElementById('stat-total').textContent     = total;
+        document.getElementById('progress-bar').style.width   = pct + '%';
+        document.getElementById('pct-label').textContent      = pct + '%';
+
+        const emailEl2 = document.getElementById('current-email-2');
+        if (emailEl2) emailEl2.textContent = data.current_email || '—';
+
+        // Show/hide progress panel
+        const panel = document.getElementById('progress-panel');
+        if (data.active) {
+          panel.classList.remove('hidden');
+        }
+
+        // Update log
+        const lines = data.log || [];
+        if (lines.length > lastLogCount) {
+          const box = document.getElementById('log-box');
+          const newLines = lines.slice(lastLogCount);
+          if (lastLogCount === 0) box.innerHTML = '';
+          newLines.forEach(line => {
+            const div = document.createElement('div');
+            div.innerHTML = colorLine(line);
+            box.appendChild(div);
+          });
+          box.scrollTop = box.scrollHeight;
+          lastLogCount = lines.length;
+        }
+
+        // Status label
+        const statusEl = document.getElementById('log-status');
+        if (data.active) {
+          statusEl.textContent = '● live';
+          statusEl.className = 'text-xs text-emerald-400 animate-pulse';
+        } else {
+          statusEl.textContent = 'idle';
+          statusEl.className = 'text-xs text-gray-600';
+        }
+
+        // Reload page when bot finishes so controls update
+        if (pollingActive && !data.active) {
+          pollingActive = false;
+          setTimeout(() => location.reload(), 2000);
+        }
+        pollingActive = data.active;
+      })
+      .catch(() => {});
+  }
+
+  // Poll immediately then every 3 seconds
+  poll();
+  setInterval(poll, 3000);
+</script>
+
+{% endblock %}
