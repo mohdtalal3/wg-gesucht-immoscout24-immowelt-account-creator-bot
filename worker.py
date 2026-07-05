@@ -91,35 +91,30 @@ def _log(msg: str):
 # ── Inbox helpers ─────────────────────────────────────────────────────────────
 
 def _get_inbox_count(email: str, password: str) -> int:
-    try:
-        from firstmail import firstmail_client
-        with firstmail_client(email, password) as c:
-            return c.get_message_count()
-    except Exception:
-        return 0
+    from imap_reader import imap_get_count
+    return imap_get_count(email, password)
 
 
 def _wait_for_link(email, password, sender_kw, url_kw, initial_count=0, timeout=150, interval=8):
-    from firstmail import firstmail_client
+    from imap_reader import imap_get_count, imap_get_recent_mails
     _log(f"   ⏳ Polling inbox (timeout: {timeout}s)…")
     start = time.time()
     while time.time() - start < timeout:
         time.sleep(interval)
         try:
-            with firstmail_client(email, password) as c:
-                count = c.get_message_count()
-                if count > initial_count:
-                    mails = c.get_all_mail(limit=min(count - initial_count + 5, 30))
-                    for mail in mails:
-                        sender  = (mail.sender  or "").lower()
-                        subject = (mail.subject or "").lower()
-                        body    = mail.body or ""
-                        if any(kw in sender or kw in subject for kw in sender_kw):
-                            urls = re.findall(r"https?://[^\s)<>\"'\]]+", body)
-                            for url in urls:
-                                if url_kw in url:
-                                    _log("   ✓ Verification link found!")
-                                    return url
+            count = imap_get_count(email, password)
+            if count > initial_count:
+                mails = imap_get_recent_mails(email, password, limit=min(count - initial_count + 5, 30))
+                for mail in mails:
+                    sender  = (mail["sender"]  or "").lower()
+                    subject = (mail["subject"] or "").lower()
+                    body    = mail["body"] or ""
+                    if any(kw in sender or kw in subject for kw in sender_kw):
+                        urls = re.findall(r"https?://[^\s)<>\"'\]]+", body)
+                        for url in urls:
+                            if url_kw in url:
+                                _log("   ✓ Verification link found!")
+                                return url
         except Exception as e:
             _log(f"   ⚠️  Inbox poll error: {e}")
         _log(f"   ⏳ Still waiting… ({int(time.time()-start)}s)")
